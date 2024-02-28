@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Text;
 using System.IO;
+using System.Linq;
 using System.Windows.Forms;
 using FeBuddyLibrary;
 using FeBuddyLibrary.Dat;
@@ -42,39 +43,38 @@ namespace FeBuddyWinFormUI
 
             OpenFileDialog inputFileDialog = new OpenFileDialog();
 
+            // Allow multiple file selections
             inputFileDialog.Multiselect = true;
 
-            inputFileDialog.ShowDialog();
+            // Display the file dialog
+            DialogResult result = inputFileDialog.ShowDialog();
 
-            _conversionOptions.InputFilePathForDat = inputFileDialog.FileNames;
-
-
-            sourceFileButton.Text = "";
-
-            foreach (string filePath in _conversionOptions.InputFilePathForDat)
+            // Check if files were selected
+            if (result == DialogResult.OK && inputFileDialog.FileNames.Length > 0)
             {
+                _conversionOptions.InputFilePathForDat = inputFileDialog.FileNames;
 
-                string text = "";
-
-                if (filePath.Length >= 20)
+                // Clear and update the button text for each selected file
+                sourceFileButton.Text = string.Join("\n", _conversionOptions.InputFilePathForDat.Select(filePath =>
                 {
-                    if (filePath[^17..].Contains('\\'))
+                    string text = "";
+                    if (filePath.Length >= 20)
                     {
-                        text = "..\\" + filePath[^17..].Split('\\')[^1];
+                        if (filePath[^17..].Contains('\\'))
+                        {
+                            text = "..\\" + filePath[^17..].Split('\\')[^1];
+                        }
+                        else
+                        {
+                            text = "..\\.." + filePath[^15..];
+                        }
                     }
-                    else
-                    {
-                        text = "..\\.." + filePath[^15..];
-                    }
-                }
+                    return text;
+                }));
 
-       
-
-                sourceFileButton.Text += text;
+                sourceFileButton.TextAlign = ContentAlignment.MiddleCenter;
+                sourceFileButton.AutoSize = false;
             }
-
-            sourceFileButton.TextAlign = ContentAlignment.MiddleCenter;
-            sourceFileButton.AutoSize = false;
         }
 
         private void outputDirButton_Click(object sender, EventArgs e)
@@ -150,6 +150,8 @@ namespace FeBuddyWinFormUI
                 }
 
                 StartConversion(filePath);
+                MessageBoxButtons buttons2 = MessageBoxButtons.OK;
+                MessageBox.Show("Please allow a second or so before clicking ok, this is purely so we can ensure we dont overload the converter!", "Important!", buttons2);
             }
         }
 
@@ -185,7 +187,7 @@ namespace FeBuddyWinFormUI
             worker.RunWorkerCompleted += Worker_StartConversionCompleted;
             worker.DoWork += Worker_StartConversionDoWork;
 
-            worker.RunWorkerAsync(filePath);
+            worker.RunWorkerAsync(argument:filePath);
         }
 
         private void Worker_StartConversionCompleted(object sender, RunWorkerCompletedEventArgs e)
@@ -206,7 +208,7 @@ namespace FeBuddyWinFormUI
         {
             double cropDistance;
             string filePath = (string)e.Argument;
-            string outputFileName = "\\" + _conversionOptions.InputFilePath.Split('\\')[^1].Split('.')[0];
+            string outputFileName = "\\" + filePath.Split('\\')[^1].Split('.')[0];
             if (File.Exists(_conversionOptions.outputDirectory + outputFileName + ".sct2"))
             {
                 MessageBoxButtons buttons = MessageBoxButtons.YesNo;
@@ -231,12 +233,12 @@ namespace FeBuddyWinFormUI
             if (sct2RadioButton.Checked)
             {
                 Logger.LogMessage("INFO", "Starting DAT to SCT2 Conversion.");
-                DatConversion.ReadDAT(_conversionOptions.InputFilePath, _conversionOptions.outputDirectory + outputFileName, cropDistance, false);
+                DatConversion.ReadDAT(filePath, _conversionOptions.outputDirectory + outputFileName, cropDistance, false);
             }
             else if (geojsonRadioButton.Checked)
             {
-                Logger.LogMessage("INFO", "Starting DAT to SCT2 Conversion.");
-                DatConversion.ReadDAT(_conversionOptions.InputFilePath, _conversionOptions.outputDirectory + outputFileName, cropDistance, true);
+                Logger.LogMessage("INFO", "Starting DAT to GeoJson Conversion.");
+                DatConversion.ReadDAT(filePath, _conversionOptions.outputDirectory + outputFileName, cropDistance, true);
             }
         }
 

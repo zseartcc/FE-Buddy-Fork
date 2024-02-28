@@ -42,25 +42,37 @@ namespace FeBuddyWinFormUI
 
             OpenFileDialog inputFileDialog = new OpenFileDialog();
 
+            inputFileDialog.Multiselect = true;
+
             inputFileDialog.ShowDialog();
 
-            _conversionOptions.InputFilePath = inputFileDialog.FileName;
+            _conversionOptions.InputFilePathForDat = inputFileDialog.FileNames;
 
-            string text = _conversionOptions.InputFilePath;
 
-            if (text.Length >= 20)
+            sourceFileButton.Text = "";
+
+            foreach (string filePath in _conversionOptions.InputFilePathForDat)
             {
-                if (text[^17..].Contains('\\'))
+
+                string text = "";
+
+                if (filePath.Length >= 20)
                 {
-                    text = "..\\" + text[^17..].Split('\\')[^1];
+                    if (filePath[^17..].Contains('\\'))
+                    {
+                        text = "..\\" + filePath[^17..].Split('\\')[^1];
+                    }
+                    else
+                    {
+                        text = "..\\.." + filePath[^15..];
+                    }
                 }
-                else
-                {
-                    text = "..\\.." + text[^15..];
-                }
+
+       
+
+                sourceFileButton.Text += text;
             }
 
-            sourceFileButton.Text = text;
             sourceFileButton.TextAlign = ContentAlignment.MiddleCenter;
             sourceFileButton.AutoSize = false;
         }
@@ -100,42 +112,45 @@ namespace FeBuddyWinFormUI
 
             string errorMessages = "";
 
-            if (string.IsNullOrWhiteSpace(_conversionOptions.InputFilePath)) errorMessages += "Input File Path is invalid.\n";
-            if (string.IsNullOrWhiteSpace(_conversionOptions.outputDirectory)) errorMessages += "Output Directory is invalid.\n";
+            foreach (string filePath in _conversionOptions.InputFilePathForDat)
+            {
+                if (string.IsNullOrWhiteSpace(filePath)) errorMessages += "Input File Path is invalid.\n";
+                if (string.IsNullOrWhiteSpace(_conversionOptions.outputDirectory)) errorMessages += "Output Directory is invalid.\n";
 
-            if (_conversionOptions.InputFilePath?.Split('.')[^1] != "dat") errorMessages += "Source file is not a .dat\n";
-            
-            if (!string.IsNullOrWhiteSpace(_conversionOptions.InputFilePath) && !File.Exists(_conversionOptions.InputFilePath))
-            {
-                errorMessages += "Listen here, Buddy.... Do not change the file name after you've selected it in this program.\n";
-            }
-            if (!string.IsNullOrWhiteSpace(_conversionOptions.outputDirectory) && !Directory.Exists(_conversionOptions.outputDirectory))
-            {
-                errorMessages += "Listen here, Buddy.... Do not change the folder name after you've selected it in this program.\n";
-            }
-            if (_conversionOptions.InputFilePath.Split('\\')[^1].Split('.')[0].Length >= 26)
-            {
-                errorMessages += "C'mon Mate, that's a bloody long name...Input file name must be less than 26 characters long.";
-            }
-            if (!string.IsNullOrWhiteSpace(cropingDistanceTextBox.Text))
-            {
-                if (!IsValidCroppingDistance(cropingDistanceTextBox.Text))
+                if (filePath?.Split('.')[^1] != "dat") errorMessages += "Source file is not a .dat\n";
+
+                if (!string.IsNullOrWhiteSpace(filePath) && !File.Exists(filePath))
                 {
-                    errorMessages += "Cropping distance must be a number greater than 0.";
+                    errorMessages += "Listen here, Buddy.... Do not change the file name after you've selected it in this program.\n";
                 }
+                if (!string.IsNullOrWhiteSpace(_conversionOptions.outputDirectory) && !Directory.Exists(_conversionOptions.outputDirectory))
+                {
+                    errorMessages += "Listen here, Buddy.... Do not change the folder name after you've selected it in this program.\n";
+                }
+                if (filePath.Split('\\')[^1].Split('.')[0].Length >= 26)
+                {
+                    errorMessages += "C'mon Mate, that's a bloody long name...Input file name must be less than 26 characters long.";
+                }
+                if (!string.IsNullOrWhiteSpace(cropingDistanceTextBox.Text))
+                {
+                    if (!IsValidCroppingDistance(cropingDistanceTextBox.Text))
+                    {
+                        errorMessages += "Cropping distance must be a number greater than 0.";
+                    }
+                }
+
+
+                if (errorMessages != "")
+                {
+                    MessageBoxButtons buttons = MessageBoxButtons.OK;
+                    DialogResult result;
+
+                    result = MessageBox.Show(errorMessages, "An invalid operation occured.", buttons);
+                    return;
+                }
+
+                StartConversion(filePath);
             }
-
-
-            if (errorMessages != "")
-            {
-                MessageBoxButtons buttons = MessageBoxButtons.OK;
-                DialogResult result;
-
-                result = MessageBox.Show(errorMessages, "An invalid operation occured.", buttons);
-                return;
-            }
-
-            StartConversion();
         }
 
         private bool IsValidCroppingDistance(string input)
@@ -161,7 +176,7 @@ namespace FeBuddyWinFormUI
             sct2RadioButton.Enabled = isEnabled;
         }
 
-        private void StartConversion()
+        private void StartConversion(string filePath)
         {
             ToggleComponents(false);
             startButton.Text = "PROCESSING";
@@ -170,7 +185,7 @@ namespace FeBuddyWinFormUI
             worker.RunWorkerCompleted += Worker_StartConversionCompleted;
             worker.DoWork += Worker_StartConversionDoWork;
 
-            worker.RunWorkerAsync();
+            worker.RunWorkerAsync(filePath);
         }
 
         private void Worker_StartConversionCompleted(object sender, RunWorkerCompletedEventArgs e)
@@ -190,6 +205,7 @@ namespace FeBuddyWinFormUI
         private void Worker_StartConversionDoWork(object sender, DoWorkEventArgs e)
         {
             double cropDistance;
+            string filePath = (string)e.Argument;
             string outputFileName = "\\" + _conversionOptions.InputFilePath.Split('\\')[^1].Split('.')[0];
             if (File.Exists(_conversionOptions.outputDirectory + outputFileName + ".sct2"))
             {
